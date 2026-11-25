@@ -26,6 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Add a Sharp LS011B7DH03 memory LCD driver for the nice!view (`sharp_memory`/`ls011b7dh03` features), configurable in `keyboard.toml` with `driver = "nice_view"` over `[display.protocol.spi]` on nRF52.
 - `unilateral_tap` now works with `hold_on_other_press`: an opposite-hand press resolves a tap-hold key as hold immediately and a same-hand press as tap, like QMK's Chordal Hold. Same-hand tap-hold keys stay undecided, so modifiers on one hand can stack.
 - `KeyboardEvent::keycode` executes a direct keycode without keymap, combo or fork lookup; `Virtual(u8)` remains a software keymap position.
 - Pointer acceleration in `PointingProcessor` for every pointing device: motion faster than a threshold is scaled up in proportion to its speed, up to a maximum, in cursor mode (`acceleration = { from, max }` in `keyboard.toml`) and scroll mode (`scroll_acceleration`). Off by default.

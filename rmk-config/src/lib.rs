@@ -1523,6 +1523,8 @@ pub struct SpiConfig {
     pub instance: String,
     pub sck: String,
     pub mosi: String,
+    /// Empty for write-only devices such as displays.
+    #[serde(default)]
     pub miso: String,
     pub cs: Option<String>,
     pub cpi: Option<u32>,
@@ -1555,6 +1557,9 @@ pub enum DisplayDriver {
     Sh1107,
     Sh1108,
     Ssd1309,
+    /// Sharp memory LCD used by the nice!view.
+    #[serde(alias = "nice_view")]
+    Ls011b7dh03,
 }
 
 /// Display configuration
