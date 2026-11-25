@@ -237,7 +237,7 @@ The `profile` of a morse key contains all tunable configurations of this morse k
 
 A profile contains the following fields:
 
-- `unilateral_tap`: (Experimental) Enables unilateral tap mode. When enabled, tap action will be triggered when a key from "same" hand is pressed. In current experimental version, the "same" hand is calculated using the `<hand>`, which can be given in `layout.map`. This option is recommended to set to true when `enable_flow_tap` is set to true. In `normal_mode` the tap resolves when the same-hand key is pressed; in `permissive_hold` mode, when it is released. `hold_on_other_press` mode ignores this option, because the hold fires on the other key's press first.
+- `unilateral_tap`: (Experimental) Enables unilateral tap mode. When enabled, tap action will be triggered when a key from "same" hand is pressed. In current experimental version, the "same" hand is calculated using the `<hand>`, which can be given in `layout.map`. This option is recommended to set to true when `enable_flow_tap` is set to true. In `normal_mode` the tap resolves when the same-hand key is pressed; in `permissive_hold` mode, when it is released. In `hold_on_other_press` mode, only an opposite-hand (or `Unknown`/bilateral) key press triggers the hold, and a same-hand press resolves the tap immediately, like QMK's [Chordal Hold](https://docs.qmk.fm/tap_hold#chordal-hold). A same-hand tap-hold key pressed while another is held leaves both undecided, so you can stack modifiers on one hand before pressing the key on the other hand.
 
 - The morse mode, which can be set by enabling one of these:
   - `permissive_hold`: Enables permissive hold mode. When enabled, hold action will be triggered when a key is pressed and released during tap-hold decision. This option is recommended to set to true when `enable_flow_tap` is set to true.
@@ -300,6 +300,9 @@ The following examples are the typical default configurations:
 [behavior.morse.profiles]
 # This profile is recommended on the home row, when enable_flow_tap = true, and the hold action activates a layer or acts as a modifier (aka home row mod)
 HRM = { unilateral_tap = true, permissive_hold = true, hold_timeout = "250ms", gap_timeout = "250ms" }
+
+# Home row mods that resolve on the press of a key on the other hand (hold) or the same hand (tap)
+HRM_FAST = { unilateral_tap = true, hold_on_other_press = true, hold_timeout = "250ms", gap_timeout = "250ms" }
 
 # This profile is recommended when the hold action activates a layer or acts as a modifier (without HRM) (for example thumb keys)
 FH = { enable_flow_tap = false, hold_on_other_press = true, unilateral_tap = false, hold_timeout = "200ms", gap_timeout = "200ms" }

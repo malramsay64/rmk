@@ -1,0 +1,143 @@
+# Home row mods resolved on the other hand's press.
+#
+# `hold_on_other_press` combined with `unilateral_tap` (like QMK's Chordal Hold
+# with HOLD_ON_OTHER_KEY_PRESS, or ZMK's hold-preferred with
+# hold-trigger-key-positions): a press on the opposite hand resolves the held
+# key as hold immediately, a press on the same hand resolves it as tap
+# immediately. A same-hand morse key leaves both undecided, so modifiers on one
+# hand can stack before the opposite-hand key.
+#
+# The morse fixture is the shared split board's home row: A@(1,0) and
+# MT(B, LShift)@(1,1) on the left, MT(C, LGui)@(1,7), LT(1, D)@(1,8),
+# MT(E, LAlt)@(1,9) and Y@(1,10) on the right, backed on layer 1 by Kp1..Kp5.
+# Space@(3,4) is a bilateral thumb key.
+
+keyboard = "boards/split.toml"
+
+[behavior.morse]
+hold_on_other_press = true
+unilateral_tap = true
+
+[[test]]
+name = "opposite_hand_holds_on_press"
+steps = [
+  { press = [1, 1] },    # Press MT(B, LShift)
+  { press = [1, 10] },   # Press Y -> hold now, before Y is released
+  { release = [1, 1] },
+  { release = [1, 10] },
+]
+expect = [["LShift"], ["LShift", "Y"], ["Y"], []]
+
+[[test]]
+name = "opposite_hand_tap"
+steps = [
+  { press = [1, 1] },  # Press MT(B, LShift)
+  { tap = { pos = [1, 10], duration = 10 } },
+  { release = [1, 1] },
+]
+expect = [["LShift"], ["LShift", "Y"], ["LShift"], []]
+
+[[test]]
+name = "same_hand_taps_on_press"
+steps = [
+  { press = [1, 1] },  # Press MT(B, LShift)
+  { press = [1, 0] },  # Press A -> tap now
+  { release = [1, 1] },
+  { release = [1, 0] },
+]
+expect = [["B"], ["B", "A"], ["A"], []]
+
+[[test]]
+name = "same_hand_tap"
+steps = [
+  { press = [1, 1] },  # Press MT(B, LShift)
+  { tap = { pos = [1, 0], duration = 10 } },
+  { release = [1, 1] },
+]
+expect = [["B"], ["B", "A"], ["B"], []]
+
+[[test]]
+name = "lt_opposite_hand"
+steps = [
+  { press = [1, 8] },  # Press LT(1, D)
+  { press = [1, 0] },  # Press A -> layer 1: Kp1
+  { release = [1, 8] },
+  { release = [1, 0] },
+]
+expect = [["Kp1"], []]
+
+[[test]]
+name = "lt_same_hand"
+steps = [
+  { press = [1, 8] },   # Press LT(1, D)
+  { press = [1, 10] },  # Press Y -> tap D
+  { release = [1, 8] },
+  { release = [1, 10] },
+]
+expect = [["D"], ["D", "Y"], ["Y"], []]
+
+[[test]]
+name = "bilateral_key_holds"
+steps = [
+  { press = [1, 1] },  # Press MT(B, LShift)
+  { press = [3, 4] },  # Press Space (bilateral) -> hold
+  { release = [1, 1] },
+  { release = [3, 4] },
+]
+expect = [["LShift"], ["LShift", "Space"], ["Space"], []]
+
+[[test]]
+name = "same_hand_mods_stack"
+steps = [
+  { press = [1, 7] },  # Press MT(C, LGui)
+  { press = [1, 9] },  # Press MT(E, LAlt) -> both undecided
+  { press = [1, 0] },  # Press A -> both hold
+  { release = [1, 0] },
+  { release = [1, 9] },
+  { release = [1, 7] },
+]
+expect = [["LGui"], ["LGui", "LAlt"], ["LGui", "LAlt", "A"], ["LGui", "LAlt"], ["LGui"], []]
+
+[[test]]
+name = "same_hand_mods_then_same_hand_key"
+steps = [
+  { press = [1, 7] },   # Press MT(C, LGui)
+  { press = [1, 9] },   # Press MT(E, LAlt)
+  { press = [1, 10] },  # Press Y -> both tap, in press order
+  { release = [1, 7] },
+  { release = [1, 9] },
+  { release = [1, 10] },
+]
+expect = [["C"], ["C", "E"], ["C", "E", "Y"], ["E", "Y"], ["Y"], []]
+
+[[test]]
+name = "same_hand_mod_roll"
+steps = [
+  { press = [1, 7] },  # Press MT(C, LGui)
+  { press = [1, 9] },  # Press MT(E, LAlt)
+  { release = [1, 7] },
+  { release = [1, 9] },
+]
+expect = [["C"], [], ["E"], []]
+
+[[test]]
+name = "timeout_holds"
+steps = [
+  { press = [1, 1] },  # Press MT(B, LShift)
+  { delay = 300 },
+  { release = [1, 1] },
+]
+expect = [["LShift"], []]
+
+[[test]]
+name = "flow_tap_while_typing"
+behavior.morse = { enable_flow_tap = true, prior_idle_time = "120ms" }
+steps = [
+  { delay = 150 },
+  { tap = { pos = [1, 0], duration = 10 } },  # Type A
+  { press = [1, 1] },   # Press MT(B, LShift) within prior_idle_time -> tap
+  { press = [1, 10] },  # Press Y -> no hold
+  { release = [1, 1] },
+  { release = [1, 10] },
+]
+expect = [["A"], [], ["B"], ["B", "Y"], ["Y"], []]

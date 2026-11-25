@@ -760,6 +760,29 @@ impl<'a> Keyboard<'a> {
                                 decision_for_current_key = KeyBehaviorDecision::Buffer;
                             }
                             MorseMode::HoldOnOtherPress => {
+                                // With unilateral_tap, only an opposite-hand press triggers the hold
+                                // (like QMK's Chordal Hold). A same-hand press resolves the held key as
+                                // a tap, unless the new key is itself a morse key: then both stay
+                                // undecided so same-hand modifiers can stack before an opposite-hand key.
+                                if Self::is_unilateral_tap_enabled(self.keymap, &held_key.action)
+                                    && matches!(held_key.state, KeyState::Pressed(_))
+                                    && let KeyboardEventSource::Key(pos1) = held_key.event.source
+                                    && let KeyboardEventSource::Key(pos2) = event.source
+                                {
+                                    let hand1 = self.keymap.hand_at(pos1.row as usize, pos1.col as usize);
+                                    let hand2 = self.keymap.hand_at(pos2.row as usize, pos2.col as usize);
+                                    if hand1.is_same_side(hand2) {
+                                        if key_action.is_morse() {
+                                            debug!("Same-hand morse key pressed, keep held morse key undecided");
+                                        } else {
+                                            debug!("Unilateral tap on press (HoldOnOtherPress mode)");
+                                            let _ =
+                                                decisions.push((held_key.event.source, HeldKeyDecision::UnilateralTap));
+                                            decision_for_current_key = KeyBehaviorDecision::CleanBuffer;
+                                        }
+                                        continue;
+                                    }
+                                }
                                 debug!(
                                     "Trigger morse key due to hold on other key press: {:?}",
                                     held_key.action
