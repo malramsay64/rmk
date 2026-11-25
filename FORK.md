@@ -38,18 +38,16 @@ driver = "nice_view"   # or "ls011b7dh03"
 size = "160x68"
 rotation = 90          # 68x160 portrait
 renderer = "OledRenderer"
+power_pin = "P0_13"    # nice!nano VCC switch, cut while sleeping
 
 [split.central.display.protocol.spi]   # nRF52 only; miso is not needed
 instance = "SPI2"
 sck = "P0_20"
 mosi = "P0_17"
 cs = "P0_06"
-
-# The nice!nano powers the display from VCC, which P0.13 switches.
-[[split.central.output]]
-pin = "P0_13"
-initial_state_active = true
 ```
+
+`power_pin` is the nice!nano's switched VCC output, which powers the display. The display stays dark without it. While the keyboard sleeps, the driver switches the panel off; on wake it powers the panel up, clears it and redraws. Anything else on VCC, such as RGB, goes off too. Leave `power_pin` out to keep the panel powered. Don't also list the pin under `[[output]]`.
 
 `render_interval` defaults to 1000 ms for this panel, because it needs its VCOM toggled about once a second, and every flush toggles it. `BinaryColor::On` is a dark pixel on the light background.
 
@@ -58,7 +56,8 @@ initial_state_active = true
 | `rmk/src/display/drivers/sharp_memory.rs` | Driver and its unit tests (new file) |
 | `rmk-macro/src/codegen/sharp_memory_display.rs` | SPI and driver codegen, with tests (new file) |
 | `rmk-macro/src/codegen/display.rs` | Hooks into the new module for SPI and the new driver |
-| `rmk-config/src/lib.rs` | `Ls011b7dh03` driver variant; `miso` is optional |
+| `rmk/src/display/mod.rs` | `DisplayDriver::set_sleeping` (default no-op), called by `DisplayProcessor` on sleep and wake |
+| `rmk-config/src/lib.rs` | `Ls011b7dh03` driver variant; `power_pin` display field; `miso` is optional |
 | `rmk/Cargo.toml`, `rmk/src/display/drivers/mod.rs` | `sharp_memory` and `ls011b7dh03` features |
 | `rmk-config/tests/keyboard_toml_validation.rs` | Config test |
 

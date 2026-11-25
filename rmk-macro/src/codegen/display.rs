@@ -136,6 +136,7 @@ fn expand_display_driver_init(config: &DisplayConfig) -> TokenStream {
     if let DisplayDriver::Ls011b7dh03 = config.driver {
         return sharp_memory_display::expand_ls011b7dh03_init(config);
     }
+    sharp_memory_display::reject_power_pin(config);
     let address = get_i2c_address(config);
     let rotation = match config.rotation {
         0 => quote! { Rotate0 },

@@ -1578,6 +1578,8 @@ pub struct DisplayConfig {
     /// Minimum time in milliseconds between event-driven renders.
     /// Prevents the display from being hammered by rapid events. Default: 10 ms.
     pub min_render_interval: Option<u64>,
+    /// Active-high pin that powers the panel, switched off while sleeping (ls011b7dh03 only).
+    pub power_pin: Option<String>,
 }
 
 /// Configuration for an output pin

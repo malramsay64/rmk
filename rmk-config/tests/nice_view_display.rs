@@ -24,6 +24,7 @@ cols = 1
 driver = "nice_view"
 size = "160x68"
 rotation = 90
+power_pin = "P0_13"
 
 [display.protocol.spi]
 instance = "SPI2"
@@ -43,4 +44,5 @@ cs = "P0_06"
     };
     assert_eq!(spi.miso, "");
     assert_eq!(spi.cs.as_deref(), Some("P0_06"));
+    assert_eq!(display.power_pin.as_deref(), Some("P0_13"));
 }

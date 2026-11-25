@@ -40,6 +40,24 @@ const CMD_CLEAR: u8 = 0x20;
 // Chip select setup and hold times from the LS011B7DH03 datasheet.
 const CS_SETUP_US: u32 = 6;
 const CS_HOLD_US: u32 = 2;
+// Settle time after switching panel power on, before the first command.
+const POWER_UP_MS: u32 = 10;
+
+/// Power pin for a panel that is always powered.
+pub struct NoPowerPin;
+
+impl embedded_hal::digital::ErrorType for NoPowerPin {
+    type Error = core::convert::Infallible;
+}
+
+impl OutputPin for NoPowerPin {
+    fn set_low(&mut self) -> Result<(), Self::Error> {
+        Ok(())
+    }
+    fn set_high(&mut self) -> Result<(), Self::Error> {
+        Ok(())
+    }
+}
 
 /// Display rotation, clockwise. 90 and 270 give a 68x160 portrait canvas.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -55,10 +73,15 @@ pub enum Rotation {
 /// [`BinaryColor::On`] draws a dark pixel on the reflective (light) background.
 /// [`flush`](DisplayDriver::flush) sends only the lines drawn since the last
 /// flush, and toggles VCOM every time it runs, even when nothing changed.
-pub struct Ls011b7dh03<SPI, CS, D> {
+///
+/// With a power pin (active high, see [`with_power_pin`](Self::with_power_pin)),
+/// the panel is switched off while the keyboard sleeps and cleared on wake.
+pub struct Ls011b7dh03<SPI, CS, D, PWR = NoPowerPin> {
     spi: SPI,
     cs: CS,
     delay: D,
+    power: PWR,
+    powered: bool,
     rotation: Rotation,
     vcom: bool,
     /// Wire-order framebuffer: bit 7 of byte 0 is the leftmost pixel, 1 = light.
@@ -67,18 +90,15 @@ pub struct Ls011b7dh03<SPI, CS, D> {
     dirty: u128,
 }
 
-impl<SPI, CS, D> Ls011b7dh03<SPI, CS, D>
-where
-    SPI: SpiBus,
-    CS: OutputPin,
-    D: DelayNs,
-{
+impl<SPI, CS, D> Ls011b7dh03<SPI, CS, D> {
     /// `cs` must start low (deselected).
     pub fn new(spi: SPI, cs: CS, delay: D, rotation: Rotation) -> Self {
         Self {
             spi,
             cs,
             delay,
+            power: NoPowerPin,
+            powered: true,
             rotation,
             vcom: false,
             buffer: [[0xFF; LINE_BYTES]; HEIGHT],
@@ -86,6 +106,29 @@ where
         }
     }
 
+    /// Switch panel power with `power`, which must start high (on).
+    pub fn with_power_pin<P: OutputPin>(self, power: P) -> Ls011b7dh03<SPI, CS, D, P> {
+        Ls011b7dh03 {
+            spi: self.spi,
+            cs: self.cs,
+            delay: self.delay,
+            power,
+            powered: self.powered,
+            rotation: self.rotation,
+            vcom: self.vcom,
+            buffer: self.buffer,
+            dirty: self.dirty,
+        }
+    }
+}
+
+impl<SPI, CS, D, PWR> Ls011b7dh03<SPI, CS, D, PWR>
+where
+    SPI: SpiBus,
+    CS: OutputPin,
+    D: DelayNs,
+    PWR: OutputPin,
+{
     /// Send `frame` with the chip selected.
     async fn send(&mut self, frame: &[&[u8]]) -> Result<(), SPI::Error> {
         self.cs.set_high().ok();
@@ -111,11 +154,12 @@ where
     }
 }
 
-impl<SPI, CS, D> DisplayDriver for Ls011b7dh03<SPI, CS, D>
+impl<SPI, CS, D, PWR> DisplayDriver for Ls011b7dh03<SPI, CS, D, PWR>
 where
     SPI: SpiBus,
     CS: OutputPin,
     D: DelayNs,
+    PWR: OutputPin,
 {
     async fn init(&mut self) {
         let cmd = CMD_CLEAR | self.vcom_bit();
@@ -126,6 +170,10 @@ where
     }
 
     async fn flush(&mut self) {
+        // Driving the bus into an unpowered panel can back-power it through its inputs.
+        if !self.powered {
+            return;
+        }
         let vcom = self.vcom_bit();
         if self.dirty == 0 {
             // Nothing to draw: send only the VCOM toggle.
@@ -158,9 +206,24 @@ where
             self.dirty = 0;
         }
     }
+
+    async fn set_sleeping(&mut self, sleeping: bool) {
+        if sleeping != self.powered {
+            return;
+        }
+        self.powered = !sleeping;
+        if sleeping {
+            self.power.set_low().ok();
+        } else {
+            self.power.set_high().ok();
+            self.delay.delay_ms(POWER_UP_MS).await;
+            // The panel lost its image while off.
+            self.init().await;
+        }
+    }
 }
 
-impl<SPI, CS, D> OriginDimensions for Ls011b7dh03<SPI, CS, D> {
+impl<SPI, CS, D, PWR> OriginDimensions for Ls011b7dh03<SPI, CS, D, PWR> {
     fn size(&self) -> Size {
         match self.rotation {
             Rotation::Deg0 | Rotation::Deg180 => Size::new(WIDTH as u32, HEIGHT as u32),
@@ -169,7 +232,7 @@ impl<SPI, CS, D> OriginDimensions for Ls011b7dh03<SPI, CS, D> {
     }
 }
 
-impl<SPI, CS, D> DrawTarget for Ls011b7dh03<SPI, CS, D> {
+impl<SPI, CS, D, PWR> DrawTarget for Ls011b7dh03<SPI, CS, D, PWR> {
     type Color = BinaryColor;
     type Error = core::convert::Infallible;
 
@@ -221,7 +284,7 @@ impl<SPI, CS, D> DrawTarget for Ls011b7dh03<SPI, CS, D> {
 
 #[cfg(test)]
 mod tests {
-    use std::cell::RefCell;
+    use std::cell::{Cell, RefCell};
     use std::rc::Rc;
     use std::vec;
     use std::vec::Vec;
@@ -238,6 +301,7 @@ mod tests {
     struct Bus(Log);
     struct Cs(Log, bool);
     struct NoDelay;
+    struct Power(Rc<Cell<bool>>);
 
     impl embedded_hal_async::spi::ErrorType for Bus {
         type Error = core::convert::Infallible;
@@ -284,6 +348,21 @@ mod tests {
         }
     }
 
+    impl embedded_hal::digital::ErrorType for Power {
+        type Error = core::convert::Infallible;
+    }
+
+    impl OutputPin for Power {
+        fn set_high(&mut self) -> Result<(), Self::Error> {
+            self.0.set(true);
+            Ok(())
+        }
+        fn set_low(&mut self) -> Result<(), Self::Error> {
+            self.0.set(false);
+            Ok(())
+        }
+    }
+
     impl DelayNs for NoDelay {
         async fn delay_ns(&mut self, _: u32) {}
     }
@@ -292,6 +371,14 @@ mod tests {
         let log = Log::default();
         let display = Ls011b7dh03::new(Bus(log.clone()), Cs(log.clone(), false), NoDelay, rotation);
         (display, log)
+    }
+
+    type PoweredDisplay = Ls011b7dh03<Bus, Cs, NoDelay, Power>;
+
+    fn powered_display() -> (PoweredDisplay, Log, Rc<Cell<bool>>) {
+        let (display, log) = display(Rotation::Deg0);
+        let power = Rc::new(Cell::new(true));
+        (display.with_power_pin(Power(power.clone())), log, power)
     }
 
     fn frames(log: &Log) -> Vec<Vec<u8>> {
@@ -392,5 +479,46 @@ mod tests {
         assert_eq!(display.dirty, ((1u128 << 8) - 1) << 60);
         assert_eq!(display.buffer[60][0], 0x00);
         assert_eq!(display.buffer[60][1], 0x3F);
+    }
+
+    #[test]
+    fn sleep_cuts_power_and_skips_flushes() {
+        let (mut display, log, power) = powered_display();
+        block_on(display.set_sleeping(true));
+        assert!(!power.get());
+        Pixel(Point::new(0, 0), BinaryColor::On).draw(&mut display).unwrap();
+        block_on(display.flush());
+        assert!(frames(&log).is_empty());
+    }
+
+    #[test]
+    fn wake_powers_up_clears_and_redraws() {
+        let (mut display, log, power) = powered_display();
+        Pixel(Point::new(0, 0), BinaryColor::On).draw(&mut display).unwrap();
+        block_on(display.flush());
+        block_on(display.set_sleeping(true));
+        frames(&log);
+
+        block_on(display.set_sleeping(false));
+        assert!(power.get());
+        assert_eq!(frames(&log), vec![vec![CMD_CLEAR, 0x00]]);
+
+        // The panel was blanked, so the same pixel is sent again.
+        Pixel(Point::new(0, 0), BinaryColor::On).draw(&mut display).unwrap();
+        block_on(display.flush());
+        let mut pixels = [0xFF; LINE_BYTES];
+        pixels[0] = 0x7F;
+        let mut expected = vec![CMD_WRITE | CMD_VCOM];
+        expected.extend(line(0, pixels));
+        expected.push(0x00);
+        assert_eq!(frames(&log), vec![expected]);
+    }
+
+    #[test]
+    fn repeated_sleep_state_is_ignored() {
+        let (mut display, log, power) = powered_display();
+        block_on(display.set_sleeping(false));
+        assert!(power.get());
+        assert!(frames(&log).is_empty());
     }
 }

@@ -66,13 +66,28 @@ pub(crate) fn expand_ls011b7dh03_init(config: &DisplayConfig) -> TokenStream {
             rotation
         ),
     };
+    let power = config.power_pin.as_ref().map(|pin| {
+        let pin = format_ident!("{}", pin);
+        quote! {
+            .with_power_pin(::embassy_nrf::gpio::Output::new(
+                p.#pin, ::embassy_nrf::gpio::Level::High, ::embassy_nrf::gpio::OutputDrive::Standard
+            ))
+        }
+    });
     quote! {
         let display = ::rmk::display::drivers::sharp_memory::Ls011b7dh03::new(
             display_spi,
             display_cs,
             ::embassy_time::Delay,
             ::rmk::display::drivers::sharp_memory::Rotation::#rotation,
-        );
+        )#power;
+    }
+}
+
+/// `power_pin` is only wired up for this driver; reject it elsewhere instead of ignoring it.
+pub(crate) fn reject_power_pin(config: &DisplayConfig) {
+    if config.power_pin.is_some() {
+        panic!("`power_pin` is only supported by the ls011b7dh03 display driver");
     }
 }
 
@@ -99,6 +114,7 @@ mod tests {
             renderer: Some("OledRenderer".to_string()),
             render_interval,
             min_render_interval: None,
+            power_pin: None,
         }
     }
 
@@ -127,6 +143,36 @@ mod tests {
         assert!(code.contains("Rotation :: Deg90"));
         assert!(code.contains("from_millis (1000u64)"));
         assert!(code.contains("SPI2 => :: embassy_nrf :: spim :: InterruptHandler"));
+    }
+
+    #[test]
+    fn nice_view_switches_its_power_pin() {
+        let mut config = nice_view(nice_view_spi(), None);
+        let code = generated(ChipSeries::Nrf52, &config);
+        assert!(!code.contains("with_power_pin"));
+        config.power_pin = Some("P0_13".to_string());
+        let code = generated(ChipSeries::Nrf52, &config);
+        assert!(code.contains(
+            "with_power_pin (:: embassy_nrf :: gpio :: Output :: new (p . P0_13 , :: embassy_nrf :: gpio :: Level :: High"
+        ));
+    }
+
+    #[test]
+    #[should_panic(expected = "only supported by the ls011b7dh03")]
+    fn oled_rejects_power_pin() {
+        let i2c = I2cConfig {
+            instance: "TWISPI0".to_string(),
+            sda: "P0_17".to_string(),
+            scl: "P0_20".to_string(),
+            address: 0x3C,
+        };
+        let config = DisplayConfig {
+            driver: DisplayDriver::Ssd1306,
+            size: "128x32".to_string(),
+            power_pin: Some("P0_13".to_string()),
+            ..nice_view(CommunicationProtocol::I2c(i2c), None)
+        };
+        generated(ChipSeries::Nrf52, &config);
     }
 
     #[test]
