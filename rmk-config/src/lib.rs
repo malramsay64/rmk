@@ -1523,6 +1523,8 @@ pub struct SpiConfig {
     pub instance: String,
     pub sck: String,
     pub mosi: String,
+    /// Empty for write-only devices such as displays.
+    #[serde(default)]
     pub miso: String,
     pub cs: Option<String>,
     pub cpi: Option<u32>,
@@ -1555,6 +1557,9 @@ pub enum DisplayDriver {
     Sh1107,
     Sh1108,
     Ssd1309,
+    /// Sharp memory LCD used by the nice!view.
+    #[serde(alias = "nice_view")]
+    Ls011b7dh03,
 }
 
 /// Display configuration
@@ -1573,6 +1578,8 @@ pub struct DisplayConfig {
     /// Minimum time in milliseconds between event-driven renders.
     /// Prevents the display from being hammered by rapid events. Default: 10 ms.
     pub min_render_interval: Option<u64>,
+    /// Active-high pin that powers the panel, switched off while sleeping (ls011b7dh03 only).
+    pub power_pin: Option<String>,
 }
 
 /// Configuration for an output pin

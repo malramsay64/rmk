@@ -170,6 +170,11 @@ pub trait DisplayDriver: DrawTarget {
     fn init(&mut self) -> impl core::future::Future<Output = ()>;
     /// Flush the framebuffer to the display.
     fn flush(&mut self) -> impl core::future::Future<Output = ()>;
+    /// Called after the sleep render when the keyboard sleeps, and before the
+    /// wake render. Drivers that can cut panel power override this.
+    fn set_sleeping(&mut self, _sleeping: bool) -> impl core::future::Future<Output = ()> {
+        async {}
+    }
 }
 
 /// Trait for custom display renderers.
@@ -377,7 +382,13 @@ where
 
     async fn on_sleep_state_event(&mut self, event: SleepStateEvent) {
         self.ctx.sleeping = event.0;
+        if !event.0 {
+            self.display.set_sleeping(false).await;
+        }
         self.render().await;
+        if event.0 {
+            self.display.set_sleeping(true).await;
+        }
     }
 
     #[cfg(feature = "_ble")]

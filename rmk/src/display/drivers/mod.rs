@@ -4,5 +4,7 @@
 pub mod lcd_async;
 #[cfg(feature = "oled_async")]
 mod oled_async;
+#[cfg(feature = "sharp_memory")]
+pub mod sharp_memory;
 #[cfg(feature = "ssd1306")]
 mod ssd1306;

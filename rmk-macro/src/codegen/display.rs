@@ -5,6 +5,7 @@ use rmk_config::resolved::hardware::{
 };
 
 use super::input_device::Initializer;
+use super::sharp_memory_display;
 
 /// Expand display configuration into initialization code + a processor.
 /// Returns (initialization_code, processor_initializer).
@@ -36,7 +37,9 @@ pub(crate) fn expand_display_interrupt(
 ) -> TokenStream {
     match &display_config.protocol {
         CommunicationProtocol::I2c(i2c) => expand_i2c_interrupt(chip_series, i2c),
-        CommunicationProtocol::Spi(_) => panic!("SPI display interface is not yet supported"),
+        CommunicationProtocol::Spi(spi) => {
+            sharp_memory_display::expand_spi_interrupt(chip_series, spi)
+        }
     }
 }
 
@@ -72,7 +75,7 @@ fn expand_i2c_interrupt(chip_series: &ChipSeries, i2c: &I2cConfig) -> TokenStrea
 fn expand_protocol_init(chip_series: &ChipSeries, protocol: &CommunicationProtocol) -> TokenStream {
     match protocol {
         CommunicationProtocol::I2c(i2c) => expand_i2c_init(chip_series, i2c),
-        CommunicationProtocol::Spi(_) => panic!("SPI display interface is not yet supported"),
+        CommunicationProtocol::Spi(spi) => sharp_memory_display::expand_spi_init(chip_series, spi),
     }
 }
 
@@ -130,6 +133,10 @@ fn get_i2c_address(config: &DisplayConfig) -> u8 {
 }
 
 fn expand_display_driver_init(config: &DisplayConfig) -> TokenStream {
+    if let DisplayDriver::Ls011b7dh03 = config.driver {
+        return sharp_memory_display::expand_ls011b7dh03_init(config);
+    }
+    sharp_memory_display::reject_power_pin(config);
     let address = get_i2c_address(config);
     let rotation = match config.rotation {
         0 => quote! { Rotate0 },
@@ -154,6 +161,7 @@ fn expand_display_driver_init(config: &DisplayConfig) -> TokenStream {
                 ).into_buffered_graphics_mode();
             }
         }
+        DisplayDriver::Ls011b7dh03 => unreachable!(),
         driver @ (DisplayDriver::Sh1106
         | DisplayDriver::Sh1107
         | DisplayDriver::Sh1108
@@ -193,7 +201,13 @@ fn expand_display_processor_init(config: &DisplayConfig) -> TokenStream {
         }
     };
 
-    let render_interval = config.render_interval.map(|ms| {
+    let render_interval_ms =
+        config
+            .render_interval
+            .or(sharp_memory_display::default_render_interval(
+                &config.driver,
+            ));
+    let render_interval = render_interval_ms.map(|ms| {
         quote! {
             .with_render_interval(::embassy_time::Duration::from_millis(#ms))
         }
