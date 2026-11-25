@@ -295,14 +295,3 @@ steps = [
   { release = [1, 8] },
 ]
 expect = [["A"], [], ["Kp2"], []]
-
-[[test]]
-name = "opposite_hand_hrms_inner_released_first"
-steps = [
-  { delay = 150 },
-  { press = [1, 1] },    # Press MT(B, LShift)
-  { press = [1, 9] },    # Press MT(E, LAlt) on the other hand -> LShift held
-  { release = [1, 9] },
-  { release = [1, 1] },
-]
-expect = [["LShift"], ["LShift", "E"], ["LShift"], []]

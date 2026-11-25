@@ -61,7 +61,7 @@ splits by resolution mode. Those all start with `morse_`, so
 
 | File | Covers |
 |---|---|
-| `morse_normal`, `morse_permissive_hold`, `morse_hold_on_other_press`, `morse_hrm`, `morse_hrm_hold_on_other_press` | The same home-row fixture under each resolution mode |
+| `morse_normal`, `morse_permissive_hold`, `morse_hold_on_other_press`, `morse_hrm` | The same home-row fixture under each resolution mode |
 | `morse_combo_*` | One combo table over morse keys, under each of those modes |
 | `morse_tap_dance`, `morse_bilateral`, `morse_rollover`, `morse_layer_release`, `morse_quick_tap` | Morse behavior that isn't mode-specific |
 | `rynk_*` | The Rynk host protocol, one file per endpoint group |

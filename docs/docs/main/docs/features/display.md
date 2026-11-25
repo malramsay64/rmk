@@ -9,7 +9,6 @@ RMK has built-in support for OLED and other small displays through the `DisplayP
 | SSD1306    | SSD1306                                                                                       | `ssd1306`    |
 | oled-async | SH1106, SH1107, SH1108, SSD1309                                                               | `oled_async` |
 | lcd-async  | GC9107, GC9A01, ILI9225, ILI9341, ILI9342C, ILI9486, ILI9488, RM67162, ST7735, ST7789, ST7796 | `lcd_async`  |
-| Sharp memory LCD | LS011B7DH03 ([nice!view](https://nicekeyboards.com/nice-view)) | `sharp_memory` |
 
 There is also a per-chip feature flag for each supported chip (for example `sh1106` or `st7789`) which simply enables the corresponding driver feature.
 
@@ -22,11 +21,8 @@ There is also a per-chip feature flag for each supported chip (for example `sh11
 | SH1107  | 64x128, 128x128                     |
 | SH1108  | 64x160, 96x160, 128x160, 160x160    |
 | SSD1309 | 128x64                              |
-| LS011B7DH03 | 160x68                          |
 
-All OLED drivers and the LS011B7DH03 support 0, 90, 180 and 270 degree rotation. LCD resolutions are set via the `W`/`H` parameters of `LcdAsyncDisplay`.
-
-The LS011B7DH03 connects over SPI and is supported on nRF52 chips. Its panel needs a refresh about once a second even when nothing changes, so `keyboard.toml` sets `render_interval` to 1000 ms unless you set it. `BinaryColor::On` draws a dark pixel on the light background.
+All OLED drivers support 0, 90, 180 and 270 degree rotation. LCD resolutions are set via the `W`/`H` parameters of `LcdAsyncDisplay`.
 
 ## Built-in Renderers
 
